@@ -151,7 +151,37 @@ class SingleThreshold(ThresholdBaseRejectOption):
 
     def isReject(self, predict_proba_, threshold):
         return np.max(predict_proba_, axis=1) < threshold
+    def score(self, y_true, y_proba, isReject):
+        """
+        正解ラベル y_true、予測確率 y_proba、および isReject フラグから
+        accuracy（正答率）と reject rate（棄却率）を計算する。
 
+        Parameters
+        ----------
+        y_true : array-like
+            正解ラベル
+
+        y_proba : array-like
+            各サンプルのクラス予測確率
+
+        isReject : array-like (bool)
+            棄却すべきサンプルのフラグ（True: 棄却）
+
+        Returns
+        -------
+        accuracy : float
+            棄却せずに予測した中での精度
+
+        reject_rate : float
+            全体の中で棄却された割合
+        """
+        y_pred = np.argmax(y_proba, axis=1)
+        mask = ~isReject
+        if np.sum(mask) == 0:
+            return 0.0, 1.0  # すべて棄却された場合
+        accuracy = np.mean(y_pred[mask] == y_true[mask])
+        reject_rate = np.mean(isReject)
+        return accuracy, reject_rate
 
 class ClassWiseThreshold(ThresholdBaseRejectOption):
     """
