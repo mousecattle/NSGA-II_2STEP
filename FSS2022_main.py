@@ -36,18 +36,18 @@ def main():
 
     fuzzy_clf = FileInput.input_classify(clf_name)
 
-    #pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf)),
-                           #('estimator', SingleThreshold())])
-    #run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-single.csv", "test-single.csv")
+    pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf)),
+                           ('estimator', SingleThreshold())])
+    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-single.csv", "test-single.csv")
 
     pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf)),
                            ('estimator', ClassWiseThreshold())])
 
     run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-cwt.csv", "test-cwt.csv")
 
-    #pipe = Pipeline(steps = [('predict_proba_transform', predict_proba_transformer(fuzzy_clf, base = "rule")),('estimator', RuleWiseThreshold(fuzzy_clf.ruleset))])
+    pipe = Pipeline(steps = [('predict_proba_transform', predict_proba_transformer(fuzzy_clf, base = "rule")),('estimator', RuleWiseThreshold(fuzzy_clf.ruleset))])
 
-    #run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-rwt.csv", "test-rwt.csv")
+    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-rwt.csv", "test-rwt.csv")
 
 
 if __name__ == "__main__":
