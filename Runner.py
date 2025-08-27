@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Created on Mon Dec 12 19:06:50 2022
@@ -19,187 +20,258 @@ import os
 from GridSearchParameter import GridSearch
 
 
+def extract_pareto_front(results):
+    """
+    非劣解（パレート最適）な accuracy / rejectrate のペアを抽出する。
+    Parameters
+    ----------
+    results : list of tuples [(accuracy, rejectrate, model_name), ...]
+    Returns
+    -------
+    pareto_front : list of tuples
+        非劣解な点のみのリスト。
+    """
+    pareto_front = []
+    for i, (acc_i, rej_i, model_i) in enumerate(results):
+        dominated = False
+        for j, (acc_j, rej_j, _) in enumerate(results):
+            if i != j:
+                if acc_j >= acc_i and rej_j <= rej_i:
+                    if acc_j > acc_i or rej_j < rej_i:
+                        dominated = True
+                        break
+        if not dominated:
+            pareto_front.append((acc_i, rej_i, model_i))
+    return pareto_front
+
+
 class runner():
-
-    def __init__(self,
-                 dataset,
-                 algorithmID,
-                 experimentID,
-                 fname_train,
-                 fname_test):
-        """
-        コンストラクタ
-
-        Parameter
-        ---------
-        MoFGBMLライブラリの仕様に合わせています．
-        dataset : dataset name : string, ex. "iris"
-
-        algorithmID : string
-                      "result"直下のディレクトリ名
-
-        experimentID : string
-                       出力ファイルのデイレクトリ名,
-                       出力ファイルは "result\\algorithmID\\experimentID に出力されます．
-
-        file_train : string
-                     学習用データのファイル名
-
-        file_test : string
-                    評価用データのファイル名
-        """
-
+    def __init__(self, dataset, algorithmID, experimentID, fname_train, fname_test):
         self.dataset = dataset
         self.algorithmID = algorithmID
         self.experimentID = experimentID
-        self.X_train, self.X_test, self.y_train, self.y_test = CIlab.load_train_test(fname_train, fname_test,
-                                                                                     type_="numpy")
-        self.output_dir = f"../results/threshold_base/{self.algorithmID}/{self.dataset}/{self.experimentID}/"
+        self.X_train, self.X_test, self.y_train, self.y_test = CIlab.load_train_test(fname_train, fname_test, type_="numpy")
+        self.output_dir = f"./results/20250615/{self.algorithmID}/{self.dataset}/{self.experimentID}/"
 
     def grid_search(self, model, param, cv=10):
-        """
-        grid_search function
-        ハイパーパラメータをグリッドサーチにより決定し，best_modelを返す．
-
-        Parameter
-        ---------
-        model : sklearn.classifier
-
-        param : ハイパーパラメータの辞書のリスト
-
-        cv : the number of CV, default is 10
-        """
-
         gscv = GridSearchCV(model, param, cv=cv, verbose=0)
-
         gscv.fit(self.X_train, self.y_train)
-
         gs_result = pd.DataFrame.from_dict(gscv.cv_results_)
-
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-
         gs_result.to_csv(self.output_dir + 'gs_result.csv')
-
         CIlab.output_dict(gscv.best_estimator_.get_params(), self.output_dir, "best_model_info.txt")
-
         return gscv.best_estimator_
 
+    def load_model(self, model_name):
+        if model_name == "Adaboost":
+            from sklearn.ensemble import AdaBoostClassifier
+            return AdaBoostClassifier()
+        elif model_name == "DecisionTree":
+            return DecisionTreeClassifier()
+        elif model_name == "NaiveBayes":
+            from sklearn.naive_bayes import GaussianNB
+            return GaussianNB()
+        elif model_name == "GaussianProcess":
+            from sklearn.gaussian_process import GaussianProcessClassifier
+            return GaussianProcessClassifier()
+        elif model_name == "kNN":
+            return KNeighborsClassifier()
+        elif model_name == "MLP":
+            from sklearn.neural_network import MLPClassifier
+            return MLPClassifier()
+        elif model_name == "RF":
+            from sklearn.ensemble import RandomForestClassifier
+            return RandomForestClassifier()
+        elif model_name == "LinearSVC":
+            from sklearn.svm import LinearSVC
+            from sklearn.calibration import CalibratedClassifierCV
+            return CalibratedClassifierCV(LinearSVC())
+        else:
+            raise ValueError(f"Unknown model name: {model_name}")
+
     def run(self, pipe, params, train_file, test_file, core=4):
-        """
-        run function
-        ARCs(Accuracy-Rejection Curves)で必要なデータを出力する関数.
-
-        Parameter
-        ---------
-        pipe : Pipeline module
-               ステップ：predict_proba_transfomer，ThresholdBaseRejectOption
-
-        params : パラメータ辞書のリスト,
-                 辞書のキーは，"kmax", "Rmax", "deltaT"にしてください．
-
-        train_file : file name of result for trainning data, result is accuracy, reject rate, threshold
-
-        test_file : file name of result for test data
-        """
-
-
         def _run_one_param(param):
             return ThresholdEstimator(pipe, param, self.output_dir).fit(self.X_train, self.y_train)
 
         results = _run_one_param(params)
-        result_list = [ResultItem(params, result_item['accuracy'], result_item['rejectrate'], result_item['threshold'])
-                       for
-                       result_item in results]
-        # result_list = [_run_one_param(param) for param in params]
+        result_list = []
 
-        train_result = [[result.accuracy, result.rejectrate, result.threshold] for result in result_list]
+        train_result = []
+        test_result = []
+
+        for r in results:
+            threshold = r["threshold"]
+            pipe = r["pipe"]
+            pipe[-1].threshold = threshold  # 明示的に閾値を設定
+
+            # --- trainデータに対する出力 ---
+            proba_train = pipe[0].transform(self.X_train)
+            print("proba_train shape:", proba_train.shape)
+            print("proba_train sample:", proba_train[:3])
+            isReject_train = pipe[-1].isReject(proba_train, threshold)
+
+            if hasattr(pipe[-1], 'score'):
+                acc_train, rej_train = pipe[-1].score(self.y_train, proba_train, isReject_train)
+            else:
+                # スコア関数が無い場合は手動計算
+                accept_idx = ~isReject_train
+                if np.sum(accept_idx) == 0:
+                    acc_train = 0.0
+                else:
+                    y_pred = pipe[-1].predict(proba_train[accept_idx], reject_option=False)
+                    acc_train = np.mean(y_pred == self.y_train[accept_idx])
+                rej_train = np.mean(isReject_train)
+
+            train_result.append([acc_train, rej_train, threshold])
+
+            # --- testデータに対する出力 ---
+            proba_test = pipe[0].transform(self.X_test)
+            isReject_test = pipe[-1].isReject(proba_test, threshold)
+
+            if hasattr(pipe[-1], 'score'):
+                acc_test, rej_test = pipe[-1].score(self.y_test, proba_test, isReject_test)
+            else:
+                accept_idx = ~isReject_test
+                if np.sum(accept_idx) == 0:
+                    acc_test = 0.0
+                else:
+                    y_pred = pipe[-1].predict(proba_test[accept_idx], reject_option=False)
+                    acc_test = np.mean(y_pred == self.y_test[accept_idx])
+                rej_test = np.mean(isReject_test)
+
+            test_result.append([acc_test, rej_test, threshold])
+            result_list.append(ResultItem(pipe, acc_test, rej_test, threshold))
 
         output.to_csv(train_result, self.output_dir, train_file)
-
-        test_result = [result.score(self.X_test, self.y_test) for result in result_list]
-
         output.to_csv(test_result, self.output_dir, test_file)
-
         return
 
-    def run_second_stage(self, pipe, params, second_models, train_file, test_file, core=5):
-        """
-        run function
-        2段階棄却オプションのARCs(Accuracy-Rejection Curves)で必要なデータを出力する関数.
+    def run_second_stage(self, pipe, param_grid, second_models, train_file, test_file, thresh_type):
+        result_list = []
+        for param in param_grid:
+            estimator = ThresholdEstimator(pipe, param, self.output_dir)
+            result = estimator.fit(self.X_train, self.y_train)
+            result_list.extend(result)
 
-        Parameter
-        ---------
-        pipe : Pipeline module
-               ステップ：predict_proba_transfomer，ThresholdBaseRejectOption
+        proba_test_list = [res['pipe'][0].transform(self.X_test) for res in result_list]
+        base_predict_test_list = [
+            res['pipe'][-1].predict(proba, reject_option=False)
+            for proba, res in zip(proba_test_list, result_list)
+        ]
 
-        params : パラメータ辞書のリスト,
-                 辞書のキーは，"kmax", "Rmax", "deltaT"にしてください．
+        # 1段階目の出力格納用
+        first_train_result = []
+        first_test_result = []
 
-        second_model : sklearn.ClassifierMixin
-                       sklearnの識別器で使用される関数を実装したモデル
-                       2段階目の判定で用いるモデル．
+        # --- 1段階目の train/test 結果をまとめて取得 ---
+        for res in result_list:
+            estimator = res["pipe"][-1]
+            estimator.threshold = res["threshold"]
 
-        train_file : file name of result for training data, result is accuracy, reject rate, threshold
+            # --- train 評価 ---
+            proba_train = res["pipe"][0].transform(self.X_train)
+            base_predict_train = res["pipe"][-1].predict(proba_train, reject_option=False)
+            first_isReject_train = estimator.isReject(proba_train, estimator.threshold)
+            acc_train = estimator.accuracy(self.y_train, base_predict_train, first_isReject_train)
+            rej_train = estimator.rejectrate(first_isReject_train)
+            first_train_result.append([acc_train, rej_train, estimator.threshold.tolist()])
 
-        test_file : file name of result for test data
-        """
+            # --- test 評価 ---
+            proba_test = res["pipe"][0].transform(self.X_test)
+            base_predict_test = res["pipe"][-1].predict(proba_test, reject_option=False)
+            first_isReject_test = estimator.isReject(proba_test, estimator.threshold)
+            acc_test = estimator.accuracy(self.y_test, base_predict_test, first_isReject_test)
+            rej_test = estimator.rejectrate(first_isReject_test)
+            first_test_result.append([acc_test, rej_test, estimator.threshold.tolist()])
 
-        def _run_one_search_threshold(param):
-            return ThresholdEstimator(pipe, param,self.output_dir).fit(self.X_train, self.y_train)
+        # --- 1段階目の出力 ---（Rejectrate昇順ソート + 非劣解抽出つき）
 
-        result_list = _run_one_search_threshold(params)
-        print("result_list:", result_list)
-        # 学習用データの結果をまとめて出力
-        train_result = [
-            {'accuracy': result['accuracy'], 'rejectrate': result['rejectrate'], 'threshold': result['threshold']} for
-            result in result_list]
-        output.to_csv(train_result, self.output_dir, train_file)
+        # Rejectrate昇順ソート
+        first_train_result.sort(key=lambda x: x[1])
+        first_test_result.sort(key=lambda x: x[1])
 
-        # 評価用データの結果をまとめて出力
-        test_result = []
-        for result in result_list:
-            # 評価用データに対するスコア計算
-            estimator = result['pipe'][-1]  # pipeの最後の要素(ThresholdBaseRejectOptionのインスタンス)を取得
-            print("estimator:",estimator)
-            proba_test = result['pipe'][0].transform(self.X_test)  # pipeの最初の要素で予測確率を計算
-            print("proba_test:", proba_test)
-            isReject = estimator.isReject(proba_test, result['threshold'])
-            print("isReject:", isReject)
-            test_accuracy, test_reject_rate = estimator.score(self.y_test, proba_test, isReject)
-            test_result.append({'accuracy': test_accuracy, 'rejectrate': test_reject_rate})
+        # 非劣解（パレート最適）のみ抽出
+        pareto_train_result = extract_pareto_front([(acc, rej, "") for acc, rej, _ in first_train_result])
+        pareto_test_result = extract_pareto_front([(acc, rej, "") for acc, rej, _ in first_test_result])
 
-        output.to_csv(test_result, self.output_dir, test_file)
+        # ソート後のパレート結果を出力（ファイル名に "pareto-" プレフィックスを追加）
+        output.to_csv([[acc, rej, "-"] for acc, rej, _ in pareto_train_result],
+                      self.output_dir, f"train-{thresh_type}.csv")
 
-        #ここからの処理内容を考える必要あり
+        output.to_csv([[acc, rej, "-"] for acc, rej, _ in pareto_test_result],
+                      self.output_dir, f"test-{thresh_type}.csv")
 
-        #proba_train = result_list[0].pipe[0].predict_proba
-        #base_predict_train = result_list[0].pipe[-1].predict(proba_train)
-        """
-        # 2段階棄却オプション，やってることは上と同じ
-        for key, model in second_models.items():
+        # 通常のすべての結果も残しておく（従来通り）
+        output.to_csv(first_train_result, self.output_dir, f"non-sorted-train-{thresh_type}.csv")
+        output.to_csv(first_test_result, self.output_dir, f"non-sorted-test-{thresh_type}.csv")
 
-            model_predict = model.predict(self.X_train)
+        # --- 2段階目の処理 ---
+        all_results = []
+        for model_name in second_models:
+            model = self.load_model(model_name)
+            model.fit(self.X_train, self.y_train)
 
-            RO_list = [SecondStageRejectOption(thresh_estimator, model) for thresh_estimator in result_list]
+            second_RO_test_result = []
+            second_RO_train_result = []
 
-            isReject_list = [RO.isReject(proba_train, model_predict) for RO in RO_list]
+            for i, res in enumerate(result_list):
+                estimator = res['pipe'][-1]
+                estimator.threshold = res["threshold"]
 
-            second_RO_train_result = [[RO.accuracy(self.y_train, base_predict_train, isReject),
-                                       RO.rejectrate(isReject)] for RO, isReject in zip(RO_list, isReject_list)]
+                # --- testデータ ---
+                proba_test = proba_test_list[i]
+                base_predict_test = base_predict_test_list[i]
+                first_isReject_test = estimator.isReject(proba_test, estimator.threshold)
 
-            output.to_csv(second_RO_train_result, f"{self.output_dir}/{key}/", "second-" + train_file)
+                model_predict_test = model.predict(self.X_test)
+                RO_test = SecondStageRejectOption(estimator, model)
+                second_isReject_test = RO_test.isReject(proba_test, model_predict_test)
+                combined_isReject_test = np.logical_and(first_isReject_test, second_isReject_test)
 
-            model_predict = model.predict(self.X_test)
+                acc_test = RO_test.accuracy(self.y_test, base_predict_test, combined_isReject_test)
+                rej_test = RO_test.rejectrate(combined_isReject_test)
 
+                second_RO_test_result.append([acc_test, rej_test])
+                all_results.append((acc_test, rej_test, model_name))
 
-            isReject_list = [RO.isReject(proba_test, model_predict) for RO in RO_list]
+                # --- trainデータ ---
+                proba_train = res['pipe'][0].transform(self.X_train)
+                base_predict_train = res['pipe'][-1].predict(proba_train, reject_option=False)
+                first_isReject_train = estimator.isReject(proba_train, estimator.threshold)
 
-            second_RO_test_result = [[RO.accuracy(self.y_test, base_predict_test, isReject),
-                                       RO.rejectrate(isReject)] for RO, isReject in zip(RO_list, isReject_list)]
+                model_predict_train = model.predict(self.X_train)
+                RO_train = SecondStageRejectOption(estimator, model)
+                second_isReject_train = RO_train.isReject(proba_train, model_predict_train)
+                combined_isReject_train = np.logical_and(first_isReject_train, second_isReject_train)
 
-            output.to_csv(second_RO_test_result, f"{self.output_dir}/{key}/", "second-" + test_file)
-        """
+                acc_train = RO_train.accuracy(self.y_train, base_predict_train, combined_isReject_train)
+                rej_train = RO_train.rejectrate(combined_isReject_train)
+
+                second_RO_train_result.append([acc_train, rej_train])
+
+            # rejectrate 昇順にソート
+            second_RO_test_result.sort(key=lambda x: x[1])
+            second_RO_train_result.sort(key=lambda x: x[1])
+
+            # 出力
+            output.to_csv(second_RO_test_result, f"{self.output_dir}/{model_name}/", "second-" + test_file)
+            output.to_csv(second_RO_train_result, f"{self.output_dir}/{model_name}/", "second-" + train_file)
+
+        # 非劣解抽出して出力
+        pareto_results = extract_pareto_front(all_results)
+        df_pareto = pd.DataFrame(pareto_results, columns=["accuracy", "rejectrate", "model"])
+        df_pareto = df_pareto.sort_values(by="rejectrate")
+
+        # 出力ファイル名を方式に応じて変更
+        if thresh_type == "single":
+            filename = "pareto_summary_single.csv"
+        elif thresh_type == "rwt":
+            filename = "pareto_summary_rwt.csv"
+        else:
+            filename = "pareto_summary_cwt.csv"
+
+        df_pareto.to_csv(f"{self.output_dir}/{filename}", index=False)
 
     def output_const(self, dict_):
         CIlab.output_dict(dict_, self.output_dir, "Const.txt")
@@ -215,26 +287,18 @@ class ResultItem:
 
 def main():
     dataset = "pima"
-
     param = {"max_depth": [5, 10, 20]}
-
     model = DecisionTreeClassifier()
-
     run = runner(dataset,
                  "RO-test",
                  "trial00-v2",
-                 f"..\\dataset\\{dataset}\\a0_0_{dataset}-10tra.dat",
-                 f"..\\dataset\\{dataset}\\a0_0_{dataset}-10tst.dat")
-
+                 f"..\dataset\{dataset}\a0_0_{dataset}-10tra.dat",
+                 f"..\dataset\{dataset}\a0_0_{dataset}-10tst.dat")
     best_model = run.grid_search(model, param)
-
     param = {"kmax": [700], "Rmax": np.arange(0, 0.51, 0.1), "deltaT": [0.001]}
-
     pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(best_model)),
                            ('estimator', ClassWiseThreshold())])
-
     second_model = KNeighborsClassifier()
-
     run.run_second_stage(pipe, ParameterGrid(param), second_model)
 
 
