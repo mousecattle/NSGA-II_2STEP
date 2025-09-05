@@ -72,6 +72,8 @@ class ThresholdBaseRejectOption():
         全ての予測ラベルを棄却する場合，accuracy は 1.0（誤識別率 0）として計算します．
 
         """
+        #print("y",y)
+
         len_accept = np.count_nonzero(~isReject)
 
         # if all patterns are rejected, accuracy is 1.0
@@ -151,6 +153,7 @@ class SingleThreshold(ThresholdBaseRejectOption):
 
     def isReject(self, predict_proba_, threshold):
         return np.max(predict_proba_, axis=1) < threshold
+
     def score(self, y_true, y_proba, isReject):
         """
         正解ラベル y_true、予測確率 y_proba、および isReject フラグから
@@ -340,12 +343,11 @@ class SecondStageRejectOption(ThresholdBaseRejectOption):
         self.second_classifier = second_classifier
 
     def isReject(self, predict_proba, second_predict, threshold=None):
-        if threshold == None:
+        if threshold is None:
             threshold = self.thresh_estimator.threshold
 
-        base_predict = self.thresh_estimator.pipe[-1].predict(predict_proba, reject_option=False)
-
-        return self.thresh_estimator.pipe[-1].isReject(predict_proba, threshold) & (base_predict != second_predict)
+        base_predict = self.thresh_estimator.predict(predict_proba, reject_option=False)
+        return self.thresh_estimator.isReject(predict_proba, threshold) & (base_predict != second_predict)
 
     def score(self, y_true, predict_proba_, isReject):
         """

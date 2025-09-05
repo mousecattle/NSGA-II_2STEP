@@ -82,7 +82,7 @@ class ThresholdEstimator():
             return {"threshold": threshold, "accuracy": accuracy, "rejectrate": rejectrate, "isReject": isReject}
         """
         self.threshold = self.pipe[-1].zeros_threshold(y)
-        print(self.threshold)
+        #print(self.threshold)
         self.predict_proba_ = self.pipe.transform(X)
 
         self.predict_ = self.pipe[-1].predict(self.predict_proba_, reject_option=False)
@@ -243,7 +243,7 @@ class ThresholdOptimizationProblemNSGA2(ElementwiseProblem):
         self.y = y
 
     def _evaluate(self, threshold, out, *args, **kwargs):
-        print("threshold", threshold)
+        #print("threshold", threshold)
         isReject = self.estimator.pipe[-1].isReject(self.estimator.predict_proba_, threshold)
         accuracy = self.estimator.pipe[-1].accuracy(self.y, self.estimator.predict_, isReject)
         rejectrate = self.estimator.pipe[-1].rejectrate(isReject)
@@ -271,7 +271,7 @@ def save_generation_results(history, gen_numbers, estimator, X, y, output_dir, f
                 accuracy = estimator.pipe[-1].accuracy(y, estimator.predict_, isReject)
                 rejectrate = estimator.pipe[-1].rejectrate(isReject)
                 results.append([accuracy, rejectrate, thresh])
-            print("results:", results)
+            #print("results:", results)
             df = pd.DataFrame(results, columns=["Accuracy", "RejectRate", "Threshold"])
             output_dir_path = os.path.join(output_dir, f"{filename_prefix}_gen_{gen}.csv")
             # output_dir のディレクトリが存在するかどうかを確認

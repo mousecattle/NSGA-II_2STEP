@@ -268,18 +268,18 @@ class FuzzyClassifier(ClassifierMixin):
              second_winner_candidate = list(filter(lambda x : x["rule"].class_label != winner_dict["rule"].class_label, rule_dict_list))
             
              second_winner_dict = second_winner_candidate[np.argmax([rule_dict["value"] for rule_dict in second_winner_candidate])]
-             
-             
+
+
              if base == "rule":
-                 
+
                  proba = np.zeros(max([rule_dict["id"] for rule_dict in rule_dict_list]) + 1)
-                 
+
                  if winner_dict["value"] == 0:
-                 
+
                      return proba
-             
+
                  proba[winner_dict["id"]] = (winner_dict["value"] - second_winner_dict["value"]) / winner_dict["value"]
-             
+
                  return proba
         
         

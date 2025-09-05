@@ -12,7 +12,6 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 import os
 
-
 def make_setting_scale(dataset):
 
     setting = {"australian" : {"train" : {"x_min" : 0, "x_max" : 0.5, "y_min": 0.9, "y_max" : 0.94},
@@ -67,9 +66,9 @@ def make_setting(dataset):
 def make_threshold_setting():
 
     setting = {
-                #"single" : {"linestyle" : "solid"},
+                "single" : {"linestyle" : "solid"},
                 #"cwt" : {"linestyle" : "solid"}
-                "rwt" : {"linestyle" : "solid"}
+                #rwt" : {"linestyle" : "solid"}
                }
 
     return setting
@@ -160,7 +159,6 @@ class plotMLModelARC():
                 culc_df = [df.query(f"rejectrate > {t_min}").query(f"rejectrate <= {t_max}") for df in dfs]
                 culc_df = [df for df in culc_df if not df.empty]
 
-                #30回試行のうちcriteria以上の回数で0.02刻みの棄却幅に閾値が存在する場合，結果を出力する．デフォルトは16
                 criteria = 16
 
                 if len(culc_df) >= criteria:
@@ -176,16 +174,15 @@ class plotMLModelARC():
 
             return [df.mean() for df in df_mean if df is not None]
 
-        algorithmID = "./results/20250615/FSS2022"
+        algorithmID = "./results/20250615/FSS2022_test"
 
         dataset = setting["dataset"]
 
         RR = 3
         CC = 10
-        #files = [f"{algorithmID}/{dataset}/trial{rr}{cc}/{y_measure}-{base}.csv" for rr in range(RR) for cc in range(CC)]
-        #20250623変更
-        files = [f"{algorithmID}/{dataset}/trial{rr}{cc}/non-sorted-{y_measure}-{base}.csv" for rr in range(RR) for cc in range(CC)]
-        #
+
+        files = [f"{algorithmID}/{dataset}/trial{rr}{cc}/{y_measure}-{base}.csv" for rr in range(RR) for cc in range(CC)]
+
         if num_stage == 2:
 
             files = [f"{algorithmID}/{dataset}/trial{rr}{cc}/{model}/second-{y_measure}-{base}.csv" for rr in range(RR) for cc in range(CC)]
@@ -271,14 +268,14 @@ class plotMLModelARC():
             ##凡例
             ##axes.legend(fontsize = 19.7, loc = "lower right")
 
-            output_dir = f"./results/plots/NSGA-II_2stage_RO/all_models/{dataset}/"
+            output_dir = f"./results/plots/all_models/{dataset}/"
 
             if not os.path.exists(output_dir):
 
                 os.makedirs(output_dir)
             #CWT,RWT,singleを{y_measure}の後ろに追加
-            fig.savefig(f"{output_dir}/{dataset}_{y_measure}_rwt.png")
-            fig.savefig(f"{output_dir}/{dataset}_{y_measure}_rwt.png")
+            fig.savefig(f"{output_dir}/{dataset}_{y_measure}_single.png")
+            fig.savefig(f"{output_dir}/{dataset}_{y_measure}_single.png")
 
             # fig.savefig(f"{output_dir}/{dataset}_{y_measure}.png", dpi = 300)
             # fig.savefig(f"{output_dir}/{dataset}_{y_measure}.png", dpi = 300)
@@ -293,36 +290,7 @@ class plotMLModelARC():
 
         return fig, axes
 
-    def save_legend_only(self, output_path, legend_size=20):
-        model_setting = make_model_setting()
 
-        # 凡例用のダミープロット
-        fig, ax = plt.subplots(figsize=(4, 2.5), dpi=300)
-
-        lines = []
-        labels = []
-
-        for model_name in model_setting:
-            line, = ax.plot([], [],
-                            color=model_setting[model_name]["color"],
-                            label=model_name,  # ← ラベルは model_name を使う
-                            linewidth=4)
-            lines.append(line)
-            labels.append(model_name)
-
-        ax.axis('off')  # 軸非表示
-
-        legend = ax.legend(handles=lines,
-                           fontsize=legend_size,
-                           loc="center",
-                           frameon=False,
-                           ncol=2)  # 列数は調整可能
-
-        # 図のサイズに合わせて保存
-        fig.canvas.draw()
-        bbox = legend.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-        fig.savefig(output_path, bbox_inches=bbox)
-        plt.close(fig)
 def run_dataset(dataset):
 
     setting = make_setting(dataset)
@@ -336,11 +304,8 @@ if __name__ == "__main__":
 
     # datasets = ["pima", "australian", "vehicle", "heart", "phoneme", "glass", "satimage", "vowel"]
     # datasets = ["phoneme", "vowel", "texture"]
-    datasets = ["pima","australian","vehicle","vowel"]
+    datasets = ["pima", "australian", "vehicle", "heart", "phoneme", "glass", "vowel"]
 
     for dataset in datasets:
 
         print(run_dataset(dataset))
-    legend_output_path = "./results/legend_model_names.png"
-    plotMLModelARC().save_legend_only(legend_output_path)
-    print("凡例画像（モデル名ラベル）を保存しました。")

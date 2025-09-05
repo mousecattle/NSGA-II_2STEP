@@ -51,7 +51,7 @@ class runner():
         self.algorithmID = algorithmID
         self.experimentID = experimentID
         self.X_train, self.X_test, self.y_train, self.y_test = CIlab.load_train_test(fname_train, fname_test, type_="numpy")
-        self.output_dir = f"./results/20250615/{self.algorithmID}/{self.dataset}/{self.experimentID}/"
+        self.output_dir = f"./results/20250827/{self.algorithmID}/{self.dataset}/{self.experimentID}/"
 
     def grid_search(self, model, param, cv=10):
         gscv = GridSearchCV(model, param, cv=cv, verbose=0)
@@ -192,19 +192,19 @@ class runner():
         first_test_result.sort(key=lambda x: x[1])
 
         # 非劣解（パレート最適）のみ抽出
-        pareto_train_result = extract_pareto_front([(acc, rej, "") for acc, rej, _ in first_train_result])
-        pareto_test_result = extract_pareto_front([(acc, rej, "") for acc, rej, _ in first_test_result])
+        #pareto_train_result = extract_pareto_front([(acc, rej, "") for acc, rej, _ in first_train_result])
+        #pareto_test_result = extract_pareto_front([(acc, rej, "") for acc, rej, _ in first_test_result])
 
         # ソート後のパレート結果を出力（ファイル名に "pareto-" プレフィックスを追加）
-        output.to_csv([[acc, rej, "-"] for acc, rej, _ in pareto_train_result],
-                      self.output_dir, f"train-{thresh_type}.csv")
+        #output.to_csv([[acc, rej, "-"] for acc, rej, _ in pareto_train_result],
+                      #self.output_dir, f"train-{thresh_type}.csv")
 
-        output.to_csv([[acc, rej, "-"] for acc, rej, _ in pareto_test_result],
-                      self.output_dir, f"test-{thresh_type}.csv")
+        #output.to_csv([[acc, rej, "-"] for acc, rej, _ in pareto_test_result],
+                      #self.output_dir, f"test-{thresh_type}.csv")
 
         # 通常のすべての結果も残しておく（従来通り）
-        output.to_csv(first_train_result, self.output_dir, f"non-sorted-train-{thresh_type}.csv")
-        output.to_csv(first_test_result, self.output_dir, f"non-sorted-test-{thresh_type}.csv")
+        output.to_csv(first_train_result, self.output_dir, f"train-{thresh_type}.csv")
+        output.to_csv(first_test_result, self.output_dir, f"test-{thresh_type}.csv")
 
         # --- 2段階目の処理 ---
         all_results = []
@@ -259,19 +259,19 @@ class runner():
             output.to_csv(second_RO_train_result, f"{self.output_dir}/{model_name}/", "second-" + train_file)
 
         # 非劣解抽出して出力
-        pareto_results = extract_pareto_front(all_results)
-        df_pareto = pd.DataFrame(pareto_results, columns=["accuracy", "rejectrate", "model"])
-        df_pareto = df_pareto.sort_values(by="rejectrate")
+        #pareto_results = extract_pareto_front(all_results)
+        #df_pareto = pd.DataFrame(pareto_results, columns=["accuracy", "rejectrate", "model"])
+        #df_pareto = df_pareto.sort_values(by="rejectrate")
 
         # 出力ファイル名を方式に応じて変更
-        if thresh_type == "single":
-            filename = "pareto_summary_single.csv"
-        elif thresh_type == "rwt":
-            filename = "pareto_summary_rwt.csv"
-        else:
-            filename = "pareto_summary_cwt.csv"
+        #if thresh_type == "single":
+            #filename = "pareto_summary_single.csv"
+        #elif thresh_type == "rwt":
+            #filename = "pareto_summary_rwt.csv"
+        #else:
+            #filename = "pareto_summary_cwt.csv"
 
-        df_pareto.to_csv(f"{self.output_dir}/{filename}", index=False)
+        #df_pareto.to_csv(f"{self.output_dir}/{filename}", index=False)
 
     def output_const(self, dict_):
         CIlab.output_dict(dict_, self.output_dir, "Const.txt")

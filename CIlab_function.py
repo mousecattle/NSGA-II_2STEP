@@ -60,7 +60,7 @@ class CIlab():
     def dataset_file(pass_, dataset, RR, CC):
         
         return f"{pass_}{dataset}\\a{RR}_{CC}_{dataset}-10tra.dat",\
-               f"{pass_}{dataset}\\a{RR}_{CC}_{dataset}-10tst.dat"
+               f"{pass_}{dataset}\\a{RR}_{CC}_{dataset}-10tst.dat" 
     
     
     @staticmethod

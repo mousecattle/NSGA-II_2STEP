@@ -33,18 +33,14 @@ def detection_async_parallel(_requests):
 
 
 def run(dataset):
-    import os
-
-
-
     requests = [{"dataset": dataset,
                  "pythonFile": "FSS2022_main.py",
                  "algroithmID": "FSS2022_test",
                  "experimentID": f"trial{i}{j}",
-                 "trainFile": f"../dataset/{dataset}/a{i}_{j}_{dataset}-10tra.dat",
-                 "testFile": f"../dataset/{dataset}/a{i}_{j}_{dataset}-10tst.dat",
-                 "fuzzy_clf": f"../results/FSS2022/{dataset}/classify_{dataset}_{i}_{j}.csv"}
-                for i in range(1) for j in range(1)]
+                 "trainFile": f"./dataset/{dataset}/a{i}_{j}_{dataset}-10tra.dat",
+                 "testFile": f"./dataset/{dataset}/a{i}_{j}_{dataset}-10tst.dat",
+                 "fuzzy_clf": f"./results/FSS2022/{dataset}/classify_{dataset}_{i}_{j}.csv"} \
+                for i in range(3) for j in range(10)]
 
     for result in detection_async_parallel(requests):
         print(result)
@@ -53,11 +49,11 @@ def run(dataset):
 if __name__ == "__main__":
 
     start_time = time.time()
-    #Datasets = ["australian","glass","heart","penbased","phoneme","pima","vehicle",]
-    Datasets = ["australian"]
+    Datasets = ["vehicle",]
+    #テスト用
+    #Datasets = ["australian"]
+    #Datasets = ["phoneme", "pima", "vehicle", "vowel","satimage"]
 
-    for dataset in Datasets:
-        run(dataset)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"プログラムの実行時間: {elapsed_time}秒")
+
+
+

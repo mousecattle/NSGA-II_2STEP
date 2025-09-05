@@ -18,8 +18,24 @@ from ThresholdOptimization import predict_proba_transformer
 from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import Pipeline
 import pandas as pd
-
-
+from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.svm import SVC
+# モデル名とクラスの対応表
+model_factory = {
+    "Adaboost": AdaBoostClassifier(),
+    "DecisionTree": DecisionTreeClassifier(),
+    "NaiveBayes": GaussianNB(),
+    "GaussianProcess": GaussianProcessClassifier(),
+    "kNN": KNeighborsClassifier(),
+    "MLP": MLPClassifier(),
+    "RF": RandomForestClassifier(),
+    "LinearSVC": SVC(kernel="linear", probability=True),
+}
 def main():
     args = sys.argv
 
@@ -31,23 +47,26 @@ def main():
 
     thresh_param = {"kmax": [500], "Rmax": np.ones(1), "deltaT": [0.001]}
 
-    #second_models = ["Adaboost", "DecisionTree", "NaiveBayes", "GaussianProcess", "kNN", "MLP", "RF", "LinearSVC"]
-    second_models = ["Adaboost", "NaiveBayes", "GaussianProcess", "MLP", "RF"]
+    model_names = ["Adaboost", "DecisionTree", "NaiveBayes", "GaussianProcess", "kNN", "MLP", "RF", "LinearSVC"]
+    second_models = {name: model_factory[name] for name in model_names}
 
     fuzzy_clf = FileInput.input_classify(clf_name)
 
-    pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf)),
-                           ('estimator', SingleThreshold())])
-    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-single.csv", "test-single.csv")
+    # --- Single Threshold ---
+    pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf)),('estimator', SingleThreshold())])
+    #run.run(pipe, ParameterGrid(thresh_param), "train-single.csv", "test-single.csv")  # ★追加：1段階目出力
+    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-single.csv", "test-single.csv","single")
 
-    pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf)),
-                           ('estimator', ClassWiseThreshold())])
+    # --- Class-Wise Threshold ---
+    pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf)),('estimator', ClassWiseThreshold())])
+    #run.run(pipe, ParameterGrid(thresh_param), "train-cwt.csv", "test-cwt.csv")  # ★追加：1段階目出力
+    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-cwt.csv", "test-cwt.csv", "cwt")
 
-    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-cwt.csv", "test-cwt.csv")
-
-    pipe = Pipeline(steps = [('predict_proba_transform', predict_proba_transformer(fuzzy_clf, base = "rule")),('estimator', RuleWiseThreshold(fuzzy_clf.ruleset))])
-
-    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-rwt.csv", "test-rwt.csv")
+    # --- Rule-Wise Threshold ---
+    pipe = Pipeline(steps=[('predict_proba_transform', predict_proba_transformer(fuzzy_clf, base="rule")),
+                           ('estimator', RuleWiseThreshold(fuzzy_clf.ruleset))])
+    #run.run(pipe, ParameterGrid(thresh_param), "train-rwt.csv", "test-rwt.csv")  # ★追加：1段階目出力
+    run.run_second_stage(pipe, ParameterGrid(thresh_param), second_models, "train-rwt.csv", "test-rwt.csv", "rwt")
 
 
 if __name__ == "__main__":
